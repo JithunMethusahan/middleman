@@ -3,6 +3,12 @@ import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from mcp.server.fastmcp import FastMCP
+import os
+
+# Define a safe directory. ONLY files in this folder can be read.
+SAFE_DIRECTORY = os.path.join(os.getcwd(), "allowed_data")
+if not os.path.exists(SAFE_DIRECTORY):
+    os.makedirs(SAFE_DIRECTORY)
 
 # 1. Initialize the MCP Server
 # FastMCP handles all the JSON-RPC / STDIO boilerplate for you.
@@ -120,21 +126,31 @@ def refine_raw_text(raw_text: str, focus_query: str) -> str:
     return compress_text(raw_text, focus_query)
 
 @mcp.tool()
-def refine_local_file(file_path: str, focus_query: str) -> str:
+def refine_local_file(file_name: str, focus_query: str) -> str:
     """
-    Refines content from a local text or markdown file. 
-    Use this for large documents or logs that the AI can't fit in its context.
+    Refines content from a file inside the 'allowed_data' folder.
     """
+    clean_name = os.path.basename(file_name)
+    target_path = os.path.join(SAFE_DIRECTORY, clean_name)
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        if len(content.strip()) < 10:
-            return "<error>File is empty or too short.</error>"
+        if not os.path.exists(target_path):
+            return f"<error>File not found. Place your file in the 'allowed_data' folder.</error>"
             
+        # Try UTF-8 first, fallback to 'latin-1' if it's a weird Windows encoding
+        try:
+            with open(target_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            with open(target_path, 'r', encoding='latin-1') as f:
+                content = f.read()
+        
+        if not content.strip():
+            return "<error>File is empty.</error>"
+
         return compress_text(content, focus_query)
     except Exception as e:
-        return f"<error>Failed to read file: {str(e)}</error>"
+        return f"<error>Internal Error: {str(e)}</error>"
     
 if __name__ == "__main__":
     # Runs the server over STDIO, which is required by Claude Desktop / Cursor
