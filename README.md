@@ -1,28 +1,12 @@
 # Middleman: The Precision Context Refiner (MCP) 🚀
 
 Middleman is an enterprise-grade Model Context Protocol (MCP) server designed to act as a "Signal Filter" between messy raw data and expensive LLMs.
+It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes it, and sends it to the AI to save tokens.
+
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP Supported](https://img.shields.io/badge/MCP-Supported-blue)
 
----
-
-## 💰 The Problem: "The Context Tax"
-
-Modern LLMs (like GPT-4o or Claude 3.5 Sonnet) are expensive. When you ask an AI to read a 50-page PDF, a 200-comment Reddit thread, or a massive technical documentation site, you are paying for **"Noise"**:
-
-- HTML Boilerplate & CSS
-- Navigation links and footers
-- Repetitive bot messages and "thank you" comments
-- Irrelevant fluff
-
-**Result:** Your context window fills up, costs skyrocket, and the AI loses focus (hallucinates).
-
----
-
-## 🎯 The Solution: Surgical Refinement
-
-Middleman intercepts raw content **before** it reaches your primary LLM. It uses a high-speed, low-cost model (**Gemini-1.5-Flash** via OpenRouter) to distill thousands of tokens into a dense, XML-structured **"Signal"** block.
 
 ### Real-World Impact
 
