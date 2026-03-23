@@ -1,4 +1,11 @@
-# Middleman: The Precision Context Refiner (MCP) 🚀
+<div align="center">
+
+  <img src="assets/icon (1).png" alt="icon (1).png" width="150" height="150" />
+
+  <h1>Middleman: The Context Refiner MCP 🚀</h1>
+  <p><em>Enterprise-grade context distillation for LLMs. Cut API costs by 95%.</em></p>
+</div>
+
 
 Middleman is an enterprise-grade Model Context Protocol (MCP) server designed to act as a "Signal Filter" between messy raw data and expensive LLMs.
 It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes it, and sends it to the AI to save tokens.
