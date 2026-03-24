@@ -1,40 +1,59 @@
+# Copyright 2024 Jithun Methusahan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
-from openai import OpenAI
+import json
+import asyncio
+from openai import AsyncOpenAI
 from mcp.server.fastmcp import FastMCP
+from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.session import ClientSession
 
-# Initialize
-mcp = FastMCP("Middleman-Refiner")
+# 1. INITIALIZATION
+mcp = FastMCP("Middleman")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not OPENROUTER_API_KEY:
     raise ValueError("FATAL: OPENROUTER_API_KEY is missing.")
 
-client = OpenAI(
+# Notice we use AsyncOpenAI now because this is an async proxy
+client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
 
-def compress_text(text: str, focus_query: str) -> str:
-    """The Core Distillation Engine."""
-    # Safety: Limit to Gemini's massive but finite processing chunk
+# 2. LOAD PLUGINS (The Gateway Config)
+def load_servers():
+    config_path = os.path.join(os.path.dirname(__file__), "servers.json")
+    if not os.path.exists(config_path):
+        return {}
+    with open(config_path, "r") as f:
+        return json.load(f)
+
+# 3. THE COMPRESSOR ENGINE (Async)
+async def compress_text(text: str, focus_query: str) -> str:
     max_chars = 1_500_000 
     if len(text) > max_chars:
         text = text[:max_chars] + "\n\n[TRUNCATED]"
 
-    system_prompt = f"""You are a 'Context Distiller'. You receive messy, high-volume output from other MCP tools.
-Your goal: Transform raw data into a high-density XML summary.
-
+    system_prompt = f"""You are the Middleman Context Distiller.
+You receive massive, raw data dumps from downstream MCP servers (Databases, APIs, Scrapers).
+Extract ONLY the signal requested in the USER FOCUS.
 USER FOCUS: {focus_query}
-
-RULES:
-1. Extract ONLY information relevant to the Focus Query.
-2. Remove boilerplate, repetitive signatures, and 'noise'.
-3. Maintain technical accuracy and preserve all unique URLs.
-4. Output STRICTLY in <summary><core_facts>...</core_facts><urls>...</urls></summary> tags.
-"""
+Output STRICTLY in <summary><core_facts>...</core_facts></summary> tags."""
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="openrouter/free",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -43,19 +62,75 @@ RULES:
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"<error>Refinement Failed: {str(e)}</error>"
+        return f"<error>Compression Failure: {str(e)}</error>"
 
-# server.py
+# 4. THE UNIVERSAL PROXY TOOL
+import sys # Add this to your imports at the top
+
 @mcp.tool()
-def refine_output(raw_text: str, source_tool: str, focus_query: str = "Summarize everything.") -> str:
-    # This function now has THREE arguments. 
-    # 1. raw_text
-    # 2. source_tool
-    # 3. focus_query
-    if not raw_text.strip():
-        return "<error>No content provided for refinement.</error>"
+async def delegate_and_refine(target_server: str, target_tool: str, tool_kwargs_json: str, focus_query: str) -> str:
+    """
+    UNIVERSAL PROXY GATEWAY: Executes downstream tools and refines output.
+    """
+    servers_config = load_servers()
     
-    return compress_text(f"SOURCE TOOL: {source_tool}\n\nCONTENT:\n{raw_text}", focus_query)
+    if target_server not in servers_config:
+        return f"<error>Server '{target_server}' not found.</error>"
+
+    server_info = servers_config[target_server]
+    command = server_info.get("command")
+    args = server_info.get("args", [])
+
+    try:
+        kwargs = json.loads(tool_kwargs_json)
+    except json.JSONDecodeError:
+        return "<error>Invalid JSON in tool_kwargs_json.</error>"
+
+    try:
+        # Use stderr for logging - it's invisible to the MCP protocol
+        sys.stderr.write(f"DEBUG: Launching {target_server}...\n")
+        
+        server_params = StdioServerParameters(
+            command=command, 
+            args=args,
+            env=os.environ.copy()
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                
+                # 1. CALL THE TOOL
+                result = await session.call_tool(target_tool, arguments=kwargs)
+                
+                # 2. CHECK FOR DOWNSTREAM ERRORS
+                if getattr(result, "is_error", False):
+                    # Downstream tool failed, return its error message
+                    err_msg = "\n".join([c.text for c in result.content if hasattr(c, 'text')])
+                    return f"<error>Downstream Tool Error: {err_msg}</error>"
+
+                # 3. EXTRACT TEXT CONTENT (Harden the extraction)
+                raw_chunks = []
+                for content in result.content:
+                    if hasattr(content, 'text') and content.text:
+                        raw_chunks.append(content.text)
+                
+                raw_output = "\n".join(raw_chunks)
+                
+                if not raw_output.strip():
+                    return f"<error>Target tool {target_tool} returned no text content.</error>"
+
+                # 4. COMPRESS
+                sys.stderr.write(f"DEBUG: Compressing {len(raw_output)} chars...\n")
+                refined_xml = await compress_text(raw_output, focus_query)
+                
+                # FINAL SAFETY: Ensure we never return None
+                return str(refined_xml) if refined_xml is not None else "<error>Compression returned None</error>"
+
+    except Exception as e:
+        sys.stderr.write(f"ERROR: {str(e)}\n")
+        return f"<error>Proxy Execution Failed: {str(e)}</error>"
 
 if __name__ == "__main__":
+    # Standard I/O loop for Claude
     mcp.run()

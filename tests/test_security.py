@@ -11,33 +11,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License
-# wiki_fetcher.py
+# test_security.py
 import os
 import sys
 # Tell Python to look in the parent directory for server.py
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import wikipedia
-from mcp.server.fastmcp import FastMCP
-
 
 # NOW you can import the server
 from server import refine_output
 # ... the rest of your code ...
+# SET YOUR KEY
+os.environ["OPENROUTER_API_KEY"] = os.getenv("OPENROUTER_API_KEY")
 
-mcp = FastMCP("Wiki-Raw")
+from server import refine_local_file
 
-@mcp.tool()
-def get_raw_wiki(title: str) -> str:
-    """
-    Fetches the ENTIRE raw text of a Wikipedia page. 
-    Warning: This returns a MASSIVE, unformatted block of text.
-    """
-    try:
-        # We use a library that gets the raw content without cleaning
-        page = wikipedia.page(title)
-        return f"TITLE: {page.title}\n\nCONTENT:\n{page.content}"
-    except Exception as e:
-        return f"Error fetching Wikipedia: {str(e)}"
+print("--- TEST 1: NORMAL ACCESS (Should Work) ---")
+# This should find the file in allowed_data/
+res1 = refine_local_file("mission.txt", "What is the SpaceX mission code?")
+print(f"Result 1: {res1}\n")
 
-if __name__ == "__main__":
-    mcp.run()
+print("--- TEST 2: PATH TRAVERSAL ATTACK (Should Fail) ---")
+# This tries to go "up" one level to find private_secrets.txt
+res2 = refine_local_file("../private_secrets.txt", "What is the private password?")
+print(f"Result 2: {res2}\n")
+
+print("--- TEST 3: DIRECT ACCESS OUTSIDE FOLDER (Should Fail) ---")
+# This tries to find a file that exists but isn't in the 'allowed' folder
+res3 = refine_local_file("private_secrets.txt", "Read this file.")
+print(f"Result 3: {res3}\n")

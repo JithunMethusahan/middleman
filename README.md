@@ -4,6 +4,7 @@
 
   <h1>Middleman: The Context Refiner MCP 🚀</h1>
   <p><em>Enterprise-grade context distillation for LLMs. Cut API costs by 95%.</em></p>
+  
 </div>
 
 
@@ -11,15 +12,14 @@ Middleman is an enterprise-grade Model Context Protocol (MCP) server designed to
 It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes it, and sends it to the AI to save tokens.
 
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![MCP Supported](https://img.shields.io/badge/MCP-Supported-blue)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)![MCP Supported](https://img.shields.io/badge/MCP-Supported-blue)
 
 
 ### Real-World Impact
 
 | Source Data              | Raw Tokens | Middleman Signal | Token Reduction | Cost Savings |
 |--------------------------|------------|------------------|-----------------|--------------|
-| Wikipedia (Full Article) | ~25,000    | ~800             | 96.8%           | 💰💰💰      |
+| Wikipedia (Full Article) | ~25,000    | ~800             | 98.8%           | 💰💰💰      |
 | Reddit Discussion        | ~15,000    | ~600             | 96%             | 💰💰💰      |
 | System Logs (5MB)        | ~500,000   | ~1,200           | 99.7%           | 💰💰💰      |
 
@@ -27,7 +27,6 @@ It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes 
 
 ## ✨ Key Features
 
-- **URL Fetch & Refine:** Scrapes web pages, strips the DOM of garbage, and extracts the core facts.
 - **Local File Processing:** High-density distillation of local `.txt`, `.log`, and `.md` files.
 - **Surgical Focus Query:** Tell Middleman exactly what you are looking for (e.g., *"Focus only on the technical specs of the Starship engine"*) to ensure the summary is relevant.
 - **XML-Structured Output:** Returns data in a strict `<summary><core_facts>...</core_facts></summary>` schema, optimized for machine-to-machine communication.
@@ -41,9 +40,9 @@ It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes 
 |----------------|-----------------------------------------|
 | Runtime        | Python 3.10+                            |
 | Protocol       | MCP (Model Context Protocol)            |
-| Primary Engine | Google Gemini-1.5-Flash (via OpenRouter)|
+| Primary Engine |  meta-llama/llama-3.2-3b-instruct:free (via OpenRouter)|
 | Scraper        | BeautifulSoup4 (LXML)                   |
-| Orchestration  | FastMCP                                 |
+| Orchestration  |  FastMCP                                 |
 
 ---
 
@@ -93,29 +92,6 @@ Add the following to your `claude_desktop_config.json`:
 
 ---
 
-## 📖 Usage Examples
-
-### Tool: `fetch_and_refine_url`
-
-**Input:**
-- `url`: `"https://en.wikipedia.org/wiki/Quantum_computing"`
-- `focus_query`: `"What is Shor's algorithm?"`
-
-**Output:**
-
-```xml
-<summary>
-    <core_facts>
-        - Shor's algorithm is a quantum algorithm for integer factorization.
-        - It runs exponentially faster than the best known classical algorithm.
-    </core_facts>
-    <urls>
-        - https://en.wikipedia.org/wiki/Shor%27s_algorithm
-    </urls>
-</summary>
-```
-
----
 
 ## 🤝 Contributing & Customization
 
@@ -130,5 +106,6 @@ For custom enterprise integrations or consulting, contact the author via [GitHub
 ---
 
 ## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+Licensed under the Apache License, Version 2.0 (the "License"); 
+you may not use this file except in compliance with the License. 
+You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
