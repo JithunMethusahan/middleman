@@ -21,7 +21,6 @@ It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes 
 |--------------------------|------------|------------------|-----------------|--------------|
 | Wikipedia (Full Article) | ~25,000    | ~800             | 98.8%           | 💰💰💰      |
 | Reddit Discussion        | ~15,000    | ~600             | 96%             | 💰💰💰      |
-| System Logs (5MB)        | ~500,000   | ~1,200           | 99.7%           | 💰💰💰      |
 
 ---
 
