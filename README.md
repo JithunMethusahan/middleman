@@ -41,7 +41,6 @@ It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes 
 | Runtime        | Python 3.10+                            |
 | Protocol       | MCP (Model Context Protocol)            |
 | Primary Engine |  meta-llama/llama-3.2-3b-instruct:free (via OpenRouter)|
-| Scraper        | BeautifulSoup4 (LXML)                   |
 | Orchestration  |  FastMCP                                 |
 
 ---
@@ -51,6 +50,7 @@ It gets another MCP output (e.g., Wikipedia) before going to the AI, summarizes 
 ### 1. Prerequisites
 
 - Python 3.10 or higher
+https://github.com/JithunMethusahan/middleman
 - An [OpenRouter API Key](https://openrouter.ai/)
 
 ### 2. Clone and Install
@@ -102,7 +102,7 @@ Add the following to your `claude_desktop_config.json`:
 
 Middleman is a Universal Proxy. It does not come hardcoded with tools; instead, it "wraps" other MCP servers. You manage these connections via the servers.json file in the root directory.
 
-1. Configure your Tools (servers.json)
+#### 1. Configure your Tools (servers.json)
 Add any MCP-compatible server to this file. Middleman will automatically launch these in the background and intercept their data.
 
 ``` json
@@ -118,10 +118,9 @@ Add any MCP-compatible server to this file. Middleman will automatically launch 
 }
 ```
 
-2. How the AI uses the Gateway
+#### 2. How the AI uses the Gateway
 The primary AI (Claude/Cursor) communicates with Middleman via the delegate_and_refine tool. This tool acts as the "Secure Pipe."
 
-```
 Tool Arguments:
 
 target_server: The name defined in servers.json (e.g., "fetch").
@@ -131,8 +130,8 @@ target_tool: The actual tool name on that server (e.g., "fetch" or "query_db").
 tool_kwargs_json: The arguments for the downstream tool in JSON format.
 
 focus_query: The specific signal you want Middleman to extract from the resulting bloat.
-```
-3. Example Workflow
+
+#### 3. Example Workflow
 
 When you ask an AI to research a topic, the internal logic looks like this:
 
