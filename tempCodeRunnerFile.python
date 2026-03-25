@@ -1,0 +1,4 @@
+name = "jithun"
+
+while "jithun run":
+    print("hi") 
