@@ -59,7 +59,7 @@ git clone https://github.com/JithunMethusahan/middleman.git
 cd middleman
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt![alt text](image.png)
 ```
 
 ### 3. Environment Configuration
@@ -122,13 +122,13 @@ The primary AI (Claude/Cursor) communicates with Middleman via the delegate_and_
 
 Tool Arguments:
 
-target_server: The name defined in servers.json (e.g., "fetch").
+#### 1. target_server: The name defined in servers.json (e.g., "fetch").
 
-target_tool: The actual tool name on that server (e.g., "fetch" or "query_db").
+#### 2. target_tool: The actual tool name on that server (e.g., "fetch" or "query_db").
 
-tool_kwargs_json: The arguments for the downstream tool in JSON format.
+#### 3.  tool_kwargs_json: The arguments for the downstream tool in JSON format.
 
-focus_query: The specific signal you want Middleman to extract from the resulting bloat.
+#### 4. focus_query: The specific signal you want Middleman to extract from the resulting bloat.
 
 #### 3. Example Workflow
 
@@ -145,6 +145,25 @@ Middleman: Intercepts the 15,000 tokens..
 Llama: Extracts the founding date into a 20-token XML block.meta-llama/llama-3.2-3b-instruct:free
 
 AI Result: Receives only the 20-token XML. Token Savings: 99.8%.
+
+## Models you can use for free
+
+#### 1. 🦙 Meta (Llama Family)
+Meta's open-source models are currently dominating the free tier
+
+meta-llama/llama-3.3-70b-instruct:free (Top pick for general tasks)
+
+meta-llama/llama-3.2-3b-instruct:free (Extremely fast, lightweight)
+
+meta-llama/llama-3.1-405b:free (Huge model, slightly slower)
+
+#### 2. 🌐 Google
+
+google/gemini-2.0-flash-exp:free (Massive 1-Million token context window)
+
+#### 3. 🧠 DeepSeek
+
+deepseek/deepseek-r1:free (Best for deep logical thinking)
 
 ## 🤝 Contributing & Customization
 

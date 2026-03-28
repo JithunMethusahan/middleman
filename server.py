@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import json
 import asyncio
@@ -131,6 +132,40 @@ async def delegate_and_refine(target_server: str, target_tool: str, tool_kwargs_
         sys.stderr.write(f"ERROR: {str(e)}\n")
         return f"<error>Proxy Execution Failed: {str(e)}</error>"
 
+# ... (keep all your existing imports and tools) ...
+
 if __name__ == "__main__":
-    # Standard I/O loop for Claude
-    mcp.run()
+    import sys
+    # If you run: python server.py
+    # It runs locally for Claude/Cursor
+    if len(sys.argv) == 1:
+        mcp.run(transport="stdio")
+    
+    # If you run: python server.py sse
+    # It starts a Web Server for Smithery/Render
+    elif sys.argv[1] == "sse":
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.routing import Route
+        import uvicorn
+
+        sse = SseServerTransport("/messages")
+        app = Starlette(
+            debug=True,
+            routes=[
+                Route("/sse", endpoint=sse.handle_sse),
+                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"]),
+            ],
+        )
+
+        async def handle_mcp():
+            async with mcp._mcp_server as server:
+                await server.connect(sse)
+
+        @app.on_event("startup")
+        async def startup():
+            asyncio.create_task(handle_mcp())
+
+        # Render provides the PORT environment variable
+        port = int(os.environ.get("PORT", 8000))
+        uvicorn.run(app, host="0.0.0.0", port=port)
