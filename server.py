@@ -1,171 +1,81 @@
-# Copyright 2024 Jithun Methusahan
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-import os
-import json
-import asyncio
+# Copyright 2024 Jithun Methusahan - Apache License 2.0
+import os, json, asyncio, sys
 from openai import AsyncOpenAI
 from mcp.server.fastmcp import FastMCP
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.session import ClientSession
 
 # 1. INITIALIZATION
-mcp = FastMCP("Middleman")
+mcp = FastMCP("Middleman-Pro-Gateway")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
-    raise ValueError("FATAL: OPENROUTER_API_KEY is missing.")
+client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
-# Notice we use AsyncOpenAI now because this is an async proxy
-client = AsyncOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=OPENROUTER_API_KEY,
-)
-
-# 2. LOAD PLUGINS (The Gateway Config)
+# 2. HELPER: Load Config
 def load_servers():
-    config_path = os.path.join(os.path.dirname(__file__), "servers.json")
+    config_path = os.path.join(os.getcwd(), "servers.json")
     if not os.path.exists(config_path):
         return {}
     with open(config_path, "r") as f:
         return json.load(f)
 
-# 3. THE COMPRESSOR ENGINE (Async)
+# 3. CORE: Async Compressor
 async def compress_text(text: str, focus_query: str) -> str:
-    max_chars = 1_500_000 
-    if len(text) > max_chars:
-        text = text[:max_chars] + "\n\n[TRUNCATED]"
-
-    system_prompt = f"""You are the Middleman Context Distiller.
-You receive massive, raw data dumps from downstream MCP servers (Databases, APIs, Scrapers).
-Extract ONLY the signal requested in the USER FOCUS.
-USER FOCUS: {focus_query}
-Output STRICTLY in <summary><core_facts>...</core_facts></summary> tags."""
-
     try:
+        sys.stderr.write(f"[MIDDLEMAN] Compressing {len(text)} characters...\n")
         response = await client.chat.completions.create(
-            model="openrouter/free",
+            model="google/gemini-1.5-flash",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"RAW MCP OUTPUT:\n{text}"}
+                {"role": "system", "content": f"You are a Context Distiller. Extract only signal for: {focus_query}. Output XML <summary><core_facts>..."},
+                {"role": "user", "content": text[:1000000]} # Limit to 1M chars
             ]
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or "<error>Empty AI response</error>"
     except Exception as e:
-        return f"<error>Compression Failure: {str(e)}</error>"
+        return f"<error>Compression failed: {str(e)}</error>"
 
-# 4. THE UNIVERSAL PROXY TOOL
-import sys # Add this to your imports at the top
-
+# 4. THE MASTER TOOL (With Metadata)
 @mcp.tool()
-async def delegate_and_refine(target_server: str, target_tool: str, tool_kwargs_json: str, focus_query: str) -> str:
+async def delegate_and_refine(
+    target_server: str, 
+    target_tool: str, 
+    tool_kwargs_json: str, 
+    focus_query: str = "Summarize the key facts."
+) -> str:
     """
-    UNIVERSAL PROXY GATEWAY: Executes downstream tools and refines output.
-    """
-    servers_config = load_servers()
+    The Universal Proxy Gateway. Executes a tool on a downstream MCP server 
+    and distills the results before returning them to the primary LLM.
     
-    if target_server not in servers_config:
-        return f"<error>Server '{target_server}' not found.</error>"
+    :param target_server: The key from servers.json (e.g., 'fetch', 'sqlite').
+    :param target_tool: The specific tool name to call on the downstream server.
+    :param tool_kwargs_json: A JSON string of arguments for the tool (e.g., '{"url": "https://..."}').
+    :param focus_query: Specific information to extract from the raw data.
+    """
+    sys.stderr.write(f"\n[MIDDLEMAN] ROUTING: {target_server} -> {target_tool}\n")
+    
+    config = load_servers()
+    if target_server not in config:
+        return f"<error>Server '{target_server}' not configured in servers.json</error>"
 
-    server_info = servers_config[target_server]
-    command = server_info.get("command")
-    args = server_info.get("args", [])
-
+    s = config[target_server]
+    params = StdioServerParameters(command=s["command"], args=s["args"], env=os.environ.copy())
+    
     try:
         kwargs = json.loads(tool_kwargs_json)
-    except json.JSONDecodeError:
-        return "<error>Invalid JSON in tool_kwargs_json.</error>"
-
-    try:
-        # Use stderr for logging - it's invisible to the MCP protocol
-        sys.stderr.write(f"DEBUG: Launching {target_server}...\n")
-        
-        server_params = StdioServerParameters(
-            command=command, 
-            args=args,
-            env=os.environ.copy()
-        )
-        
-        async with stdio_client(server_params) as (read, write):
+        async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
-                
-                # 1. CALL THE TOOL
                 result = await session.call_tool(target_tool, arguments=kwargs)
                 
-                # 2. CHECK FOR DOWNSTREAM ERRORS
-                if getattr(result, "is_error", False):
-                    # Downstream tool failed, return its error message
-                    err_msg = "\n".join([c.text for c in result.content if hasattr(c, 'text')])
-                    return f"<error>Downstream Tool Error: {err_msg}</error>"
+                # Check for tool errors
+                if getattr(result, 'is_error', False):
+                    return f"<error>Downstream Error: {str(result.content)}</error>"
 
-                # 3. EXTRACT TEXT CONTENT (Harden the extraction)
-                raw_chunks = []
-                for content in result.content:
-                    if hasattr(content, 'text') and content.text:
-                        raw_chunks.append(content.text)
-                
-                raw_output = "\n".join(raw_chunks)
-                
-                if not raw_output.strip():
-                    return f"<error>Target tool {target_tool} returned no text content.</error>"
-
-                # 4. COMPRESS
-                sys.stderr.write(f"DEBUG: Compressing {len(raw_output)} chars...\n")
-                refined_xml = await compress_text(raw_output, focus_query)
-                
-                # FINAL SAFETY: Ensure we never return None
-                return str(refined_xml) if refined_xml is not None else "<error>Compression returned None</error>"
-
+                # Extract and refine
+                raw_text = "\n".join([c.text for c in result.content if hasattr(c, 'text')])
+                return await compress_text(raw_text, focus_query)
     except Exception as e:
-        sys.stderr.write(f"ERROR: {str(e)}\n")
-        return f"<error>Proxy Execution Failed: {str(e)}</error>"
-
-# ... (keep all your existing imports and tools) ...
+        return f"<error>Proxy Failed: {str(e)}</error>"
 
 if __name__ == "__main__":
-    import sys
-    # If you run: python server.py
-    # It runs locally for Claude/Cursor
-    if len(sys.argv) == 1:
-        mcp.run(transport="stdio")
-    
-    # If you run: python server.py sse
-    # It starts a Web Server for Smithery/Render
-    elif sys.argv[1] == "sse":
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.routing import Route
-        import uvicorn
-
-        sse = SseServerTransport("/messages")
-        app = Starlette(
-            debug=True,
-            routes=[
-                Route("/sse", endpoint=sse.handle_sse),
-                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"]),
-            ],
-        )
-
-        async def handle_mcp():
-            async with mcp._mcp_server as server:
-                await server.connect(sse)
-
-        @app.on_event("startup")
-        async def startup():
-            asyncio.create_task(handle_mcp())
-
-        # Render provides the PORT environment variable
-        port = int(os.environ.get("PORT", 8000))
-        uvicorn.run(app, host="0.0.0.0", port=port)
+    mcp.run()

@@ -1,6 +1,6 @@
 {
   "fetch": {
-    "command": "C:\\Users\\USER\\OneDrive\\Desktop\\programing\\context-refiner-mcp\\venv\\Scripts\\python.exe", 
+    "command": "python",
     "args": ["-m", "mcp_server_fetch"]
   }
 }
